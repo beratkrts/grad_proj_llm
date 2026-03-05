@@ -1,12 +1,22 @@
-# QuickDraw 16x16 U16 Pipeline
+# QuickDraw 16x16 Pipeline
 
-Bu repo, QuickDraw verisini `16x16` gri-seviye ve `16-bit (uint16)` olarak üretir, görüntüler ve PNG olarak dışa aktarır.
+Bu repo, QuickDraw verisini `16x16` çözünürlükte iki farklı formatta üretir:
+- **16-bit grayscale (uint16)**: Çizgi yoğunluğunu sürekli değerle encode eder.
+- **1-bit siyah/beyaz**: Her piksel ya çizgi (1) ya arka plan (0); min-pooling ile ince çizgiler korunur.
+
+Her iki formatta da arka plan **beyaz**, çizgiler **siyahtır**.
 
 ## Dosyalar
 
-- `make_qd_16x16.py`: QuickDraw ndjson akışından dataset üretir.
+### 16-bit pipeline
+- `make_qd_16x16.py`: QuickDraw ndjson akışından dataset üretir (`512` byte/kayıt).
 - `view_qd_16x16.py`: `images_u16.bin` içinden örnek gösterir.
 - `export_all_png.py`: Tüm kayıtları 16-bit PNG olarak dışa aktarır.
+
+### 1-bit pipeline
+- `make_qd_1bit.py`: QuickDraw ndjson akışından 1-bit dataset üretir (`32` byte/kayıt).
+- `view_qd_1bit.py`: `images_1bit.bin` içinden örnek gösterir.
+- `export_all_png_1bit.py`: Tüm kayıtları 8-bit PNG (beyaz bg, siyah çizgi) olarak dışa aktarır.
 
 ## Kurulum
 
@@ -58,7 +68,59 @@ python export_all_png.py \
   --scale 16
 ```
 
-Notlar:
+PNG dosyaları `16-bit grayscale` (`I;16`) olarak kaydedilir.
 
-- PNG dosyaları `16-bit grayscale` (`I;16`) olarak kaydedilir.
+---
+
+## 1-bit Pipeline
+
+### 1) Dataset üret
+
+```bash
+python make_qd_1bit.py \
+  --categories cat airplane tree bicycle \
+  --per_category 5000 \
+  --out_dir qd_1bit_test
+```
+
+Üretilen dosyalar:
+
+- `qd_1bit_test/images_1bit.bin` (`32` byte/kayıt, `256` bit packed MSB-first)
+- `qd_1bit_test/prompts.txt`
+- `qd_1bit_test/meta.json`
+
+Downsampling için **min-pooling** kullanılır: her 16x16 çıktı pikseli, 256x256 canvas'taki 16x16 bloğun en koyu pikselini alır. BILINEAR ile yok olacak ince çizgiler bu sayede korunur.
+
+### 2) Rastgele örnekleri görüntüle
+
+```bash
+python view_qd_1bit.py --data_dir qd_1bit_test --n 64 --cols 8
+```
+
+Tek örnek:
+
+```bash
+python view_qd_1bit.py --data_dir qd_1bit_test --index 42
+```
+
+### 3) PNG dışa aktar
+
+```bash
+python export_all_png_1bit.py \
+  --data_dir qd_1bit_test \
+  --out_dir exported_png_1bit \
+  --scale 16
+```
+
+---
+
+## Format karşılaştırması
+
+| Özellik | 16-bit (u16) | 1-bit |
+|---|---|---|
+| Byte/kayıt | 512 | 32 |
+| Piksel değerleri | 0–65535 | 0 veya 1 |
+| Downsampling | BILINEAR | Min-pooling |
+| Kullanım | Sürekli yoğunluk | İkili sınıflandırma |
+
 - Eski `u4` (4-bit) veri dosyaları (`images_u4.bin`) bu scriptlerle uyumlu değildir.

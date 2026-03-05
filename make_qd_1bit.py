@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 from tqdm import tqdm
 
 QD_NDJSON_URL = "https://storage.googleapis.com/quickdraw_dataset/full/simplified/{name}.ndjson"
-RECORD_BYTES = 512  # 16x16 * uint16 (little-endian)
+RECORD_BYTES = 32  # 16x16 bits = 256 bits = 32 bytes
 
 
 def draw_strokes_to_image(drawing, canvas=256, padding=8, stroke_width=6):
@@ -46,25 +46,30 @@ def draw_strokes_to_image(drawing, canvas=256, padding=8, stroke_width=6):
     return img
 
 
-def to_16x16_u16(img):
+def to_16x16_1bit(img, threshold=128):
     """
-    img: PIL L image
-    returns uint16 array (16,16) values in [0..65535]
+    img: PIL L image (white bg=255, black strokes=0)
+    returns bool array (16,16): True=stroke, False=background
+
+    Uses min-pooling: each 16x16 output pixel covers a 16x16 input block.
+    If any pixel in the block is a stroke (dark), the output pixel is stroke.
+    This preserves thin strokes that BILINEAR would wash out.
     """
-    small = img.resize((16, 16), resample=Image.Resampling.BILINEAR)
-    arr8 = np.array(small, dtype=np.uint8)  # 0..255
-    return arr8.astype(np.uint16) * 257  # 255 -> 65535
+    arr = np.array(img, dtype=np.uint8)  # (256, 256)
+    blocks = arr.reshape(16, 16, 16, 16)   # (out_h, block_h, out_w, block_w)
+    min_pool = blocks.min(axis=(1, 3))     # (16, 16) — darkest pixel per block
+    return min_pool < threshold            # True = stroke
 
 
-def pack_u16_16x16(u16_16):
+def pack_1bit_16x16(bits_16x16):
     """
-    u16_16: (16,16) uint16
-    returns bytes length 512 in little-endian.
+    bits_16x16: (16,16) bool array, True=stroke
+    returns bytes of length 32 (256 bits packed, MSB first)
     """
-    flat = u16_16.reshape(-1)
+    flat = bits_16x16.reshape(-1).astype(np.uint8)
     if flat.size != 256:
         raise ValueError("Expected 256 pixels")
-    return flat.astype("<u2", copy=False).tobytes()
+    return np.packbits(flat, bitorder="big").tobytes()
 
 
 def stream_category(name):
@@ -81,11 +86,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--categories", nargs="+", required=True)
     ap.add_argument("--per_category", type=int, default=5000)
-    ap.add_argument("--out_dir", type=str, default="qd_16x16_u16_out")
+    ap.add_argument("--out_dir", type=str, default="qd_16x16_1bit_out")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--canvas", type=int, default=256)
     ap.add_argument("--stroke_width", type=int, default=6)
     ap.add_argument("--padding", type=int, default=8)
+    ap.add_argument("--threshold", type=int, default=128)
     args = ap.parse_args()
 
     random.seed(args.seed)
@@ -94,13 +100,13 @@ def main():
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    img_path = out / "images_u16.bin"  # 512 bytes per record
+    img_path = out / "images_1bit.bin"  # 32 bytes per record
     prompts_path = out / "prompts.txt"
     meta_path = out / "meta.json"
     total = len(args.categories) * args.per_category
 
     with open(img_path, "wb") as fout, open(prompts_path, "w", encoding="utf-8") as ftxt:
-        pbar = tqdm(total=total, desc="Building 16x16 u16 dataset")
+        pbar = tqdm(total=total, desc="Building 16x16 1-bit dataset")
         written = 0
 
         for cat in args.categories:
@@ -117,8 +123,8 @@ def main():
                     stroke_width=args.stroke_width,
                 )
 
-                u16 = to_16x16_u16(img)  # (16,16) uint16
-                packed = pack_u16_16x16(u16)  # 512 bytes
+                bits = to_16x16_1bit(img, threshold=args.threshold)  # (16,16) bool
+                packed = pack_1bit_16x16(bits)  # 32 bytes
 
                 fout.write(packed)
                 ftxt.write(cat + "\n")
@@ -136,12 +142,13 @@ def main():
         pbar.close()
 
     meta = {
-        "format": "quickdraw_16x16_grayscale_u16_le",
+        "format": "quickdraw_16x16_1bit",
         "record_bytes": RECORD_BYTES,
-        "dtype": "uint16",
-        "endianness": "little",
+        "dtype": "uint1_packed",
+        "bitorder": "big",
         "image_size": [16, 16],
-        "pixel_range": [0, 65535],
+        "pixel_meaning": {"0": "background (white)", "1": "stroke (black)"},
+        "threshold": args.threshold,
         "canvas": args.canvas,
         "stroke_width": args.stroke_width,
         "padding": args.padding,
