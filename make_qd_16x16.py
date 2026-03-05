@@ -83,9 +83,9 @@ def main():
     ap.add_argument("--per_category", type=int, default=5000)
     ap.add_argument("--out_dir", type=str, default="qd_16x16_u16_out")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--canvas", type=int, default=256)
-    ap.add_argument("--stroke_width", type=int, default=6)
-    ap.add_argument("--padding", type=int, default=8)
+    ap.add_argument("--canvas", type=int, default=32)
+    ap.add_argument("--stroke_width", type=int, default=2)
+    ap.add_argument("--padding", type=int, default=2)
     args = ap.parse_args()
 
     random.seed(args.seed)

@@ -55,9 +55,11 @@ def to_16x16_1bit(img, threshold=128):
     If any pixel in the block is a stroke (dark), the output pixel is stroke.
     This preserves thin strokes that BILINEAR would wash out.
     """
-    arr = np.array(img, dtype=np.uint8)  # (256, 256)
-    blocks = arr.reshape(16, 16, 16, 16)   # (out_h, block_h, out_w, block_w)
-    min_pool = blocks.min(axis=(1, 3))     # (16, 16) — darkest pixel per block
+    arr = np.array(img, dtype=np.uint8)    # (canvas, canvas)
+    h, w = arr.shape                       # both must be divisible by 16
+    bh, bw = h // 16, w // 16             # block size (e.g. 2x2 for canvas=32)
+    blocks = arr.reshape(16, bh, 16, bw)  # (out_h, block_h, out_w, block_w)
+    min_pool = blocks.min(axis=(1, 3))    # (16, 16) — darkest pixel per block
     return min_pool < threshold            # True = stroke
 
 
@@ -88,9 +90,9 @@ def main():
     ap.add_argument("--per_category", type=int, default=5000)
     ap.add_argument("--out_dir", type=str, default="qd_16x16_1bit_out")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--canvas", type=int, default=256)
-    ap.add_argument("--stroke_width", type=int, default=6)
-    ap.add_argument("--padding", type=int, default=8)
+    ap.add_argument("--canvas", type=int, default=32)
+    ap.add_argument("--stroke_width", type=int, default=2)
+    ap.add_argument("--padding", type=int, default=2)
     ap.add_argument("--threshold", type=int, default=128)
     args = ap.parse_args()
 

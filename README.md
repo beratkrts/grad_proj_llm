@@ -35,6 +35,9 @@ python make_qd_16x16.py \
   --out_dir qd_u16_test
 ```
 
+> **Not:** Varsayılan olarak `--canvas 32 --stroke_width 2 --padding 2` kullanılır.
+> 256x256'dan 16x16'ya 16x küçültme yerine yalnızca **2x küçültme** yapılır; çizgiler çok daha keskin görünür.
+
 Üretilen dosyalar:
 
 - `qd_u16_test/images_u16.bin` (`512` byte/kayıt, `16x16 uint16 little-endian`)
@@ -82,6 +85,9 @@ python make_qd_1bit.py \
   --per_category 5000 \
   --out_dir qd_1bit_test
 ```
+
+> **Not:** Varsayılan olarak `--canvas 32 --stroke_width 2 --padding 2` kullanılır.
+> Min-pooling bloğu 2x2 piksel olur; 256x256'daki 16x16 bloktan çok daha temiz sonuç üretir.
 
 Üretilen dosyalar:
 
