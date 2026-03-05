@@ -51,7 +51,7 @@ def to_16x16_u16(img):
     img: PIL L image
     returns uint16 array (16,16) values in [0..65535]
     """
-    small = img.resize((16, 16), resample=Image.Resampling.BILINEAR)
+    small = img.resize((16, 16), resample=Image.Resampling.NEAREST)
     arr8 = np.array(small, dtype=np.uint8)  # 0..255
     return arr8.astype(np.uint16) * 257  # 255 -> 65535
 

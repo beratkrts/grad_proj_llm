@@ -51,16 +51,12 @@ def to_16x16_1bit(img, threshold=128):
     img: PIL L image (white bg=255, black strokes=0)
     returns bool array (16,16): True=stroke, False=background
 
-    Uses min-pooling: each 16x16 output pixel covers a 16x16 input block.
-    If any pixel in the block is a stroke (dark), the output pixel is stroke.
-    This preserves thin strokes that BILINEAR would wash out.
+    PIL draws hard-edge lines (no anti-aliasing), so NEAREST resampling
+    gives pixel-perfect binary results without noise from block pooling.
     """
-    arr = np.array(img, dtype=np.uint8)    # (canvas, canvas)
-    h, w = arr.shape                       # both must be divisible by 16
-    bh, bw = h // 16, w // 16             # block size (e.g. 2x2 for canvas=32)
-    blocks = arr.reshape(16, bh, 16, bw)  # (out_h, block_h, out_w, block_w)
-    min_pool = blocks.min(axis=(1, 3))    # (16, 16) — darkest pixel per block
-    return min_pool < threshold            # True = stroke
+    small = img.resize((16, 16), resample=Image.Resampling.NEAREST)
+    arr = np.array(small, dtype=np.uint8)
+    return arr < threshold  # True = stroke
 
 
 def pack_1bit_16x16(bits_16x16):
